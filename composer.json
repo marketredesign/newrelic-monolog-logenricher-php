@@ -1,5 +1,5 @@
 {
-    "name": "newrelic/monolog-enricher",
+    "name": "marketredesign/newrelic-monolog-enricher",
     "description": "Monolog components to enable New Relic Logs",
     "type": "library",
     "license": "Apache-2.0",
