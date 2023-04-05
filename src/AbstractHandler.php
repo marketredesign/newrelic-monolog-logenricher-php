@@ -9,32 +9,31 @@
  * that is compatible with all Monolog API versions
  *
  * @author New Relic PHP <php-agent@newrelic.com>
+ *
+ * Updated after fork: Added support for Monolog v3.
  */
 
 namespace NewRelic\Monolog\Enricher;
 
-use Monolog\Formatter\FormatterInterface;
 use Monolog\Handler\Curl;
 use Monolog\Handler\AbstractProcessingHandler;
-use Monolog\Handler\HandlerInterface;
 use Monolog\Handler\MissingExtensionException;
-use Monolog\Logger;
-use Monolog\Util;
+use Monolog\Level;
 
 abstract class AbstractHandler extends AbstractProcessingHandler
 {
-    protected $host = null;
-    protected $endpoint = 'log/v1';
-    protected $licenseKey;
-    protected $protocol = 'https://';
+    protected ?string $host = null;
+    protected string $endpoint = 'log/v1';
+    protected ?string $licenseKey;
+    protected string $protocol = 'https://';
 
     /**
-     * @param string|int $level  The minimum logging level to trigger handler
-     * @param bool       $bubble Whether messages should bubble up the stack.
+     * @param int|string|Level $level The minimum logging level to trigger handler
+     * @param bool $bubble Whether messages should bubble up the stack.
      *
      * @throws MissingExtensionException If the curl extension is missing
      */
-    public function __construct($level = Logger::DEBUG, $bubble = true)
+    public function __construct(int|string|Level $level = Level::Debug, bool $bubble = true)
     {
         if (!extension_loaded('curl')) {
             throw new MissingExtensionException(
@@ -54,9 +53,9 @@ abstract class AbstractHandler extends AbstractProcessingHandler
      * Sets the New Relic license key. Defaults to the New Relic INI's
      * value for 'newrelic.license' if available.
      *
-     * @param  string    $key
+     * @param string|null $key
      */
-    public function setLicenseKey($key)
+    public function setLicenseKey(?string $key): void
     {
         $this->licenseKey = $key;
     }
@@ -68,7 +67,7 @@ abstract class AbstractHandler extends AbstractProcessingHandler
      *
      * @param  string    $host
      */
-    public function setHost($host)
+    public function setHost(string $host): void
     {
         $this->host = $host;
     }
@@ -100,7 +99,7 @@ abstract class AbstractHandler extends AbstractProcessingHandler
      *
      * @param string $data
      */
-    protected function send($data)
+    protected function send(string $data)
     {
         $ch = $this->getCurlHandler();
 
@@ -140,10 +139,10 @@ abstract class AbstractHandler extends AbstractProcessingHandler
     /**
      * Given a licence key, returns the default log API host for that region.
      *
-     * @param string $licenseKey
+     * @param string|null $licenseKey
      * @return string
      */
-    protected static function getDefaultHost($licenseKey)
+    protected static function getDefaultHost(?string $licenseKey)
     {
         if (!is_string($licenseKey)) {
             throw new \InvalidArgumentException(

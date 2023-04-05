@@ -8,30 +8,43 @@
  * Handler.
  *
  * @author New Relic PHP <php-agent@newrelic.com>
+ *
+ * Updated after fork: Modified tests after updates to source that add support for Monolog v3.
  */
 
-namespace NewRelic\Monolog\Enricher;
+namespace Unit;
 
+use InvalidArgumentException;
+use Monolog\Formatter\JsonFormatter;
 use Monolog\Formatter\NormalizerFormatter;
-use Monolog\Handler\MissingExtensionException;
-use Monolog\Logger;
-use PHPUnit_Framework_TestCase;
+use Monolog\Level;
+use Monolog\LogRecord;
+use NewRelic\Monolog\Enricher\Formatter;
+use NewRelic\Monolog\Enricher\Handler;
+use PHPUnit\Framework\TestCase;
 
-class HandlerTest extends PHPUnit_Framework_TestCase
+class HandlerTest extends TestCase
 {
+    public static bool $CURL_IS_LOADED = true;
+
+    protected function setUp(): void {
+        parent::setUp();
+
+        self::$CURL_IS_LOADED = true;
+    }
+
     public function testHandle()
     {
-        $record = array(
-            'message' => 'test',
-            'context' => array(),
-            'level' => 300,
-            'level_name' => 'WARNING',
-            'channel' => 'test',
-            'extra' => array(),
-            'datetime' => new \DateTime("now", new \DateTimeZone("UTC")),
+        $record = new LogRecord(
+            new \DateTimeImmutable("now", new \DateTimeZone("UTC")),
+            'test',
+            Level::Warning,
+            'test',
+            [],
+            [],
         );
 
-        $formatter = new Formatter(Formatter::BATCH_MODE_JSON, false);
+        $formatter = new Formatter(JsonFormatter::BATCH_MODE_JSON, false);
         $expected = $formatter->format($record);
         $this->expectOutputString($expected);
         $handler = new StubHandler();
@@ -40,19 +53,20 @@ class HandlerTest extends PHPUnit_Framework_TestCase
 
     public function testHandleBatch()
     {
-        $record = array(
-            'message' => 'test',
-            'context' => array(),
-            'level' => 300,
-            'level_name' => 'WARNING',
-            'channel' => 'test',
-            'extra' => array(),
-            'datetime' => new \DateTime("now", new \DateTimeZone("UTC")),
+        $record = new LogRecord(
+            new \DateTimeImmutable("now", new \DateTimeZone("UTC")),
+            'test',
+            Level::Warning,
+            'test',
+            [],
+            [],
         );
 
-        $formatter = new Formatter(Formatter::BATCH_MODE_JSON, false);
+        $formatter = new Formatter(JsonFormatter::BATCH_MODE_JSON, false);
         $expected = $formatter->formatBatch(array($record));
+
         $this->expectOutputString($expected);
+
         $handler = new StubHandler();
         $handler->handleBatch(array($record));
     }
@@ -73,7 +87,7 @@ class HandlerTest extends PHPUnit_Framework_TestCase
         $handler = new Handler();
         $formatter = $handler->getFormatter();
         $this->assertEquals(
-            Formatter::BATCH_MODE_JSON,
+            JsonFormatter::BATCH_MODE_JSON,
             $formatter->getBatchMode()
         );
         $this->assertEquals(false, $formatter->isAppendingNewlines());
@@ -84,8 +98,8 @@ class HandlerTest extends PHPUnit_Framework_TestCase
         $handler = new Handler();
         $formatter = new NormalizerFormatter();
 
-        $this->setExpectedException(
-            'InvalidArgumentException',
+        self::expectException(InvalidArgumentException::class);
+        self::expectExceptionMessage(
             'NewRelic\Monolog\Enricher\Handler is only compatible with '
             . 'NewRelic\Monolog\Enricher\Formatter'
         );
@@ -95,13 +109,12 @@ class HandlerTest extends PHPUnit_Framework_TestCase
 
     public function testMissingCurlExtension()
     {
-        $this->setExpectedException(
-            'Monolog\Handler\MissingExtensionException',
-            'The curl extension is required to use this Handler'
-        );
-        $GLOBALS['extension_loaded'] = false;
+        self::expectException('Monolog\Handler\MissingExtensionException');
+        self::expectExceptionMessage('The curl extension is required to use this Handler');
+
+        self::$CURL_IS_LOADED = false;
+
         $handler = new Handler();
-        $GLOBALS['extension_loaded'] = true;
     }
 
     public function testCurlHandlerExplicitHost()
@@ -142,7 +155,7 @@ class HandlerTest extends PHPUnit_Framework_TestCase
      */
     public function testCurlHandlerDefaultException($key, $expectedException)
     {
-        $this->setExpectedException($expectedException);
+        self::expectException($expectedException);
 
         $handler = new StubHandler();
         $handler->setLicenseKey($key);
@@ -162,11 +175,11 @@ class HandlerTest extends PHPUnit_Framework_TestCase
      */
     public function testDefaultHostException($key, $expectedException)
     {
-        $this->setExpectedException($expectedException);
+        self::expectException($expectedException);
         StubHandler::getDefaultHost($key);
     }
 
-    public function defaultHostProvider()
+    public static function defaultHostProvider()
     {
         return array(
             'normal eu key' => array(
@@ -196,12 +209,12 @@ class HandlerTest extends PHPUnit_Framework_TestCase
         );
     }
 
-    public function defaultHostExceptionProvider()
+    public static function defaultHostExceptionProvider()
     {
         return array(
             'non-string key' => array(
                 array(),
-                'InvalidArgumentException',
+                'TypeError',
             ),
             'null key' => array(
                 null,
@@ -252,7 +265,7 @@ class StubHandler extends Handler {
  */
 function extension_loaded($extension)
 {
-    return $GLOBALS['extension_loaded'];
+    return HandlerTest::$CURL_IS_LOADED;
 }
 
 // Used to manually set the value returned by the mocked extension_loaded()

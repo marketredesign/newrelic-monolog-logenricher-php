@@ -23,3 +23,7 @@
 Initial split of `newrelic-monolog-logenricher-php`.  Going forward, `newrelic-monolog-logenricher-php` 2.x will support `monolog v2`, and `newrelic-monolog-logenricher-php`1.x will support `monolog v1`.
 
 Many thanks to https://github.com/tomascayuelas and to https://github.com/Tjeerd for the PR that fixed PSR-4 autoloading issue. 
+
+## 3.0.0
+
+Added support for `monolog v3`.
