@@ -9,10 +9,13 @@
  * links the log to the current New Relic application.
  *
  * @author New Relic PHP <php-agent@newrelic.com>
+ *
+ * Updated after fork: Added support for Monolog v3.
  */
 
 namespace NewRelic\Monolog\Enricher;
 
+use Monolog\LogRecord;
 use Monolog\Processor\ProcessorInterface;
 
 /**
@@ -25,10 +28,10 @@ class Processor implements ProcessorInterface
      * if a compatible New Relic extension is loaded, otherwise returns the
      * given record unmodified
      *
-     * @param  array $record A Monolog record
-     * @return array Given record, with New Relic metadata added if available
+     * @param LogRecord $record A Monolog record
+     * @return LogRecord Given record, with New Relic metadata added if available
      */
-    public function __invoke(array $record)
+    public function __invoke(LogRecord $record): LogRecord
     {
         if ($this->contextAvailable()) {
             $linking_data = newrelic_get_linking_metadata();
@@ -42,7 +45,7 @@ class Processor implements ProcessorInterface
      *
      * @return bool
      */
-    protected function contextAvailable()
+    protected function contextAvailable(): bool
     {
         return function_exists('newrelic_get_linking_metadata');
     }

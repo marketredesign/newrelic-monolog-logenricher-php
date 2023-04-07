@@ -11,25 +11,26 @@
  * for batching uploads.
  *
  * @author New Relic PHP <php-agent@newrelic.com>
+ *
+ * Updated after fork: Added support for Monolog v3.
  */
 
 namespace NewRelic\Monolog\Enricher;
 
+use InvalidArgumentException;
 use Monolog\Formatter\FormatterInterface;
-use Monolog\Handler\AbstractProcessingHandler;
-use Monolog\Handler\Curl;
+use Monolog\Formatter\JsonFormatter;
 use Monolog\Handler\HandlerInterface;
-use Monolog\Logger;
-use Monolog\Util;
+use Monolog\LogRecord;
 
 class Handler extends AbstractHandler
 {
     /**
      * Delegates upload of single record to send()
      *
-     * @param array $record
+     * @param LogRecord $record
      */
-    protected function write(array $record): void
+    protected function write(LogRecord $record): void
     {
         $this->send($record["formatted"]);
     }
@@ -40,13 +41,13 @@ class Handler extends AbstractHandler
      * are formatted as a JSON array compatible with New Relic's batch Log
      * ingest and delegated to sendBatch()
      *
-     * @param array $record
+     * @param array $records
      */
     public function handleBatch(array $records): void
     {
         $level = $this->level;
         $records = array_filter($records, function ($record) use ($level) {
-            return ($record['level'] >= $level);
+            return ($record['level'] >= $level->value);
         });
         if ($records) {
             $this->sendBatch($this->getFormatter()->formatBatch($records));
@@ -59,7 +60,7 @@ class Handler extends AbstractHandler
      *
      * @param FormatterInterface $formatter
      *
-     * @throws InvalidArgumentException If incompatible Formatter given
+     * @return HandlerInterface
      */
     public function setFormatter(
         FormatterInterface $formatter
@@ -67,7 +68,7 @@ class Handler extends AbstractHandler
         if ($formatter instanceof Formatter) {
             return parent::setFormatter($formatter);
         }
-        throw new \InvalidArgumentException(
+        throw new InvalidArgumentException(
             'NewRelic\Monolog\Enricher\Handler is only compatible with '
             . 'NewRelic\Monolog\Enricher\Formatter'
         );
@@ -80,6 +81,6 @@ class Handler extends AbstractHandler
      */
     protected function getDefaultFormatter(): FormatterInterface
     {
-        return new Formatter(Formatter::BATCH_MODE_JSON, false);
+        return new Formatter(JsonFormatter::BATCH_MODE_JSON, false);
     }
 }

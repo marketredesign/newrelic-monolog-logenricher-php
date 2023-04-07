@@ -8,14 +8,20 @@
  * JSON Formatter.
  *
  * @author New Relic PHP <php-agent@newrelic.com>
+ *
+ * Updated after fork: Modified tests after updates to source that add support for Monolog v3.
  */
 
-namespace NewRelic\Monolog\Enricher;
+namespace Unit;
 
-use Monolog\Logger;
-use PHPUnit_Framework_TestCase;
+use DateTimeImmutable;
+use Monolog\Formatter\JsonFormatter;
+use Monolog\Level;
+use Monolog\LogRecord;
+use NewRelic\Monolog\Enricher\Formatter;
+use PHPUnit\Framework\TestCase;
 
-class FormatterTest extends PHPUnit_Framework_TestCase
+class FormatterTest extends TestCase
 {
 
     /**
@@ -27,14 +33,13 @@ class FormatterTest extends PHPUnit_Framework_TestCase
      */
     private function getRecord($withNrContext)
     {
-        $record = array(
-            'message' => 'test',
-            'context' => array(),
-            'level' => 300,
-            'level_name' => 'WARNING',
-            'channel' => 'test',
-            'extra' => array(),
-            'datetime' => new \DateTime("now", new \DateTimeZone("UTC")),
+        $record = new LogRecord(
+            new DateTimeImmutable("now", new \DateTimeZone("UTC")),
+            'test',
+            Level::Warning,
+            'test',
+            [],
+            [],
         );
 
         if ($withNrContext) {
@@ -63,9 +68,9 @@ class FormatterTest extends PHPUnit_Framework_TestCase
     {
         $expected =
         '{"message":"test",'
-        . '"context":' . (Logger::API == 1 ? '[]' : '{}') . ','
+        . '"context":' . '{}' . ','
         . '"level":300,"level_name":"WARNING","channel":"test",'
-        . '"extra":' . (Logger::API == 1 ? '[]' : '{}') . ','
+        . '"extra":' . '{}' . ','
         . '"datetime":' . json_encode($record['datetime']) . ',';
 
         if (isset($record['extra']['newrelic-context'])) {
@@ -74,9 +79,7 @@ class FormatterTest extends PHPUnit_Framework_TestCase
                 . '"trace.id":"aabb1234AABB4321","span.id":"wxyz9876WXYZ6789",';
         }
 
-        $expected = $expected . '"timestamp":'
-            . intval($record['datetime']->format('U.u') * 1000) . '}'
-            . ($appendNewline ? "\n" : '');
+        $expected .= '"timestamp":' . (int)($record['datetime']->format('U.u') * 1000) . '}' . ($appendNewline ? "\n" : '');
 
         return $expected;
     }
@@ -114,23 +117,23 @@ class FormatterTest extends PHPUnit_Framework_TestCase
         $formatter = new Formatter();
         $record = $this->getRecord(true);
         $this->assertEquals(
-            $this->getExpectedForRecord($record),
-            $formatter->format($record)
+            self::sortData($this->getExpectedForRecord($record)),
+            self::sortData($formatter->format($record)),
         );
 
         // Test without trailing newline
-        $formatter = new Formatter(Formatter::BATCH_MODE_NEWLINES, false);
+        $formatter = new Formatter(JsonFormatter::BATCH_MODE_NEWLINES, false);
         $this->assertEquals(
-            $this->getExpectedForRecord($record, false),
-            $formatter->format($record)
+            self::sortData($this->getExpectedForRecord($record, false)),
+            self::sortData($formatter->format($record)),
         );
 
         // Test without New Relic context information
         $formatter = new Formatter();
         $record = $this->getRecord(false);
         $this->assertEquals(
-            $this->getExpectedForRecord($record),
-            $formatter->format($record)
+            self::sortData($this->getExpectedForRecord($record)),
+            self::sortData($formatter->format($record)),
         );
     }
 
@@ -140,7 +143,7 @@ class FormatterTest extends PHPUnit_Framework_TestCase
      */
     public function testFormatBatch()
     {
-        $formatter = new Formatter(Formatter::BATCH_MODE_JSON, false);
+        $formatter = new Formatter(JsonFormatter::BATCH_MODE_JSON, false);
         // One record with New Relic context information, one without
         $records = array(
             $this->getRecord(true),
@@ -148,12 +151,15 @@ class FormatterTest extends PHPUnit_Framework_TestCase
         );
 
         $this->assertEquals(
-            // Test records when batch processed as a JSON array.
-            '[' . $this->getExpectedForRecord($records[0], false) . ','
-            . $this->getExpectedForRecord($records[1], false) . ']',
-            $formatter->formatBatch($records)
+            self::sortData(
+                sprintf(
+                    '[%s,%s]',
+                    $this->getExpectedForRecord($records[0], false),
+                    $this->getExpectedForRecord($records[1], false),
+                )
+            ),
+            self::sortData($formatter->formatBatch($records)),
         );
-
 
         $formatter = new Formatter();
         // One record with New Relic context information, one without
@@ -162,12 +168,42 @@ class FormatterTest extends PHPUnit_Framework_TestCase
             $this->getRecord(false),
         );
 
+        $actualData = explode("\n", $formatter->formatBatch($records));
+
         $this->assertEquals(
+            sprintf(
+                '%s%s',
+                self::sortData($this->getExpectedForRecord($records[0])),
+                self::sortData($this->getExpectedForRecord($records[1], false)),
+            ),
             // Separate entries by newline, however do not append final newline
             // to match Monolog\JsonFormatter::formatBatchNewlines behavior
-            $this->getExpectedForRecord($records[0])
-            . $this->getExpectedForRecord($records[1], false),
-            $formatter->formatBatch($records)
+            self::sortData($actualData[0]) . self::sortData($actualData[1]),
         );
+    }
+
+    private static function sortData(array|string $data): array|string {
+        if (is_string($data)) {
+            $actualData = json_decode($data, true);
+
+            self::ksortRecursive($actualData);
+
+            return json_encode($actualData);
+        }
+
+        self::ksortRecursive($data);
+
+        return $data;
+    }
+
+    private static function ksortRecursive(array &$array): void
+    {
+        foreach ($array as &$value) {
+            if (is_array($value)) {
+                self::ksortRecursive($value);
+            }
+        }
+
+        ksort($array);
     }
 }
